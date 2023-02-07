@@ -32,41 +32,71 @@ if TYPE_CHECKING:
     from airflow.utils.context import Context
 
 
-@dataclass(kw_only=True)
 class DynamoDBToS3PITROperator(BaseOperator):
     """
-    :param
-    :param
-    :param
+    This code created based on boto3 python clien below.
+    https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/dynamodb.html#DynamoDB.Client.export_table_to_point_in_time
+    :param TableArn: 
+    :param ExportTime: 
+    :param ClientToken: 
+    :param S3Bucket:
+    :param S3BucketOwner:
+    :param S3Prefix:
+    :param S3SseAlgorithm:
+    :param S3SseKmsKeyId:
+    :param ExportFormat:
+    :param exportid:
+    :param aws_conn_id: The Airflow connection used for AWS credentials.
+        If this is None or empty then the default boto3 behaviour is used. If
+        running Airflow in a distributed manner and aws_conn_id is None or
+        empty, then default boto3 configuration would be used (and must be
+        maintained on each worker node).
     """
-    TableArn: str
-    ExportTime: datetime
-    ClientToken: str
-    S3Bucket: str
-    S3BucketOwner: str
-    S3Prefix: str
-    S3SseAlgorithm: str
-    S3SseKmsKeyId: str
-    ExportFormat: str
-    exportid: str
-    hook: DynamoDBHook | None = None
-    meta: field(default_factory=dict)
-
-    def __post_init__(self):
-        super().__init__(self.meta)
+    def __init__(
+        self,
+        *,
+        TableArn: str,
+        ExportTime: datetime,
+        ClientToken: str,
+        S3Bucket: str,
+        S3BucketOwner: str,
+        S3Prefix: str,
+        S3SseAlgorithm: str,
+        S3SseKmsKeyId: str,
+        ExportFormat: str,
+        exportid: str,
+        aws_conn_id: str = "aws_default",
+        region_name: str = "us-east-1",
+        **kwargs,
+    ) -> None:
+        super().__init__(**kwargs)
+        self.table_arn = TableArn
+        self.export_time = ExportTime
+        self.client_token = ClientToken
+        self.s3_bucket = S3Bucket
+        self.s3_owner = S3BucketOwner
+        self.s3_prefix = S3Prefix
+        self.s3_algo = S3SseAlgorithm
+        self.s3_kmskey = S3SseKmsKeyId
+        self.export_format = ExportFormat
+        self.export_id = exportid
+        self.aws_conn_id = aws_conn_id
+        self.region_name = region_name
 
     def execute(self, context: Context):
-        self.hook = DynamoDBHook(aws_conn_id=self.aws_conn_id)
-        client = self.hook.conn.meta.client
-        client.export_table_to_point_in_time(
-            TableArn=self.TableArn,
-            ExportTime=self.ExportTime,
-            ClientToken=self.ClientToken,
-            S3Bucket='string',
-            S3BucketOwner='string',
-            S3Prefix='string',
-            S3SseAlgorithm='AES256' | 'KMS',
-            S3SseKmsKeyId='string',
-            ExportFormat='DYNAMODB_JSON' | 'ION'
+        hook = DynamoDBHook(aws_conn_id=self.aws_conn_id, region_name=self.region_name)
+        client = hook.conn.meta.client
+        response = client.export_table_to_point_in_time(
+            TableArn=self.table_arn,
+            ExportTime=self.export_time,
+            ClientToken=self.client_token,
+            S3Bucket=self.s3_bucket,
+            S3BucketOwner=self.s3_owner,
+            S3Prefix=self.s3_prefix,
+            S3SseAlgorithm=self.s3_algo,
+            S3SseKmsKeyId=self.s3_kmskey,
+            ExportFormat=self.export_id
         )
         self.log.info("Export DynamoDB table to S3 using point in time recovery")
+
+        return response
